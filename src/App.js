@@ -4,7 +4,7 @@ import React, { useState, useCallback } from 'react';
 const App = () => {
     // State management
     const [files, setFiles] = useState([]);
-    const [fileContents, setFileContents] = useState([]); // Store file content for context
+    const [fileContents, setFileContents] = useState([]);
     const [analysisResults, setAnalysisResults] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -14,13 +14,18 @@ const App = () => {
     const [suggestionContent, setSuggestionContent] = useState('');
     const [isSuggestionLoading, setIsSuggestionLoading] = useState(false);
 
+    // NEW: State for the Code Viewer modal
+    const [isCodeModalOpen, setIsCodeModalOpen] = useState(false);
+    const [codeModalContent, setCodeModalContent] = useState({ fileName: '', content: '' });
+
+
     // --- Core Analysis Logic ---
 
     const analyzeCode = useCallback((filesWithContent) => {
         setIsLoading(true);
         setError(null);
         setAnalysisResults(null);
-        setFileContents(filesWithContent); // Save file contents for context
+        setFileContents(filesWithContent);
 
         const apiUrl = 'https://code-checker-app.onrender.com/analyze';
 
@@ -35,20 +40,19 @@ const App = () => {
         .finally(() => setIsLoading(false));
     }, []);
 
-    // Function to get AI suggestion
     const handleGetSuggestion = useCallback((issue) => {
         setIsSuggestionModalOpen(true);
         setIsSuggestionLoading(true);
         setSuggestionContent('');
 
-        const relevantFile = fileContents.find(f => f.fileName === issue.path?.replace(/\\/g, '/').split('/').pop() || f.fileName === issue.filename?.replace(/\\/g, '/').split('/').pop());
+        const fileName = issue.path?.replace(/\\/g, '/').split('/').pop() || issue.filename?.replace(/\\/g, '/').split('/').pop();
+        const relevantFile = fileContents.find(f => f.fileName === fileName);
         const lines = relevantFile ? relevantFile.content.split('\n') : [];
         const startLine = Math.max(0, (issue.line || issue.line_number) - 5);
         const endLine = Math.min(lines.length, (issue.line || issue.line_number) + 5);
         const codeContext = lines.slice(startLine, endLine).join('\n');
         
         const errorMessage = issue.message || issue.issue_text;
-
         const apiUrl = 'https://code-checker-app.onrender.com/get-suggestion';
 
         fetch(apiUrl, {
@@ -62,12 +66,19 @@ const App = () => {
             setSuggestionContent(data.suggestion);
         })
         .catch(err => {
-            // THIS IS THE FIX: Handle both Error objects and simple strings
             const errorMessage = err.message || err;
             setSuggestionContent(`<strong>Error:</strong><br/>${errorMessage}`);
         })
         .finally(() => setIsSuggestionLoading(false));
+    }, [fileContents]);
 
+    // NEW: Function to open the code viewer
+    const handleViewCode = useCallback((fileName) => {
+        const file = fileContents.find(f => f.fileName === fileName);
+        if (file) {
+            setCodeModalContent(file);
+            setIsCodeModalOpen(true);
+        }
     }, [fileContents]);
 
 
@@ -112,7 +123,7 @@ const App = () => {
         </div>
     );
     
-    const PylintReport = ({ pylintData, onGetSuggestion }) => {
+    const PylintReport = ({ pylintData, onGetSuggestion, onViewCode }) => {
         if (!pylintData || pylintData.length === 0) return <div className="bg-white p-6 rounded-xl shadow-md"><h3 className="text-xl font-semibold text-green-600">✅ Pylint: No Issues Found</h3></div>;
         return (
             <div className="bg-white p-6 rounded-xl shadow-lg">
@@ -124,7 +135,10 @@ const App = () => {
                     return acc;
                 }, {})).map(([fileName, messages]) => (
                     <div key={fileName} className="mb-4">
-                        <h3 className="text-lg font-semibold text-gray-700 mb-2 border-b pb-1">File: {fileName}</h3>
+                        <div className="flex justify-between items-center mb-2 border-b pb-1">
+                            <h3 className="text-lg font-semibold text-gray-700">File: {fileName}</h3>
+                            <button onClick={() => onViewCode(fileName)} className="text-xs bg-gray-200 hover:bg-gray-300 font-semibold px-3 py-1 rounded-full">View Code</button>
+                        </div>
                         <ul className="space-y-2">
                             {messages.map((msg, index) => (
                                 <li key={index} className="flex items-start text-sm justify-between">
@@ -144,7 +158,7 @@ const App = () => {
         );
     };
     
-    const BanditReport = ({ banditData, onGetSuggestion }) => {
+    const BanditReport = ({ banditData, onGetSuggestion, onViewCode }) => {
         if (!banditData || banditData.length === 0) return <div className="bg-white p-6 rounded-xl shadow-md"><h3 className="text-xl font-semibold text-green-600">✅ Bandit: No Security Issues Found</h3></div>;
         return (
             <div className="bg-gray-800 text-white p-6 rounded-xl shadow-lg">
@@ -155,9 +169,12 @@ const App = () => {
                             <p className="font-semibold">{issue.issue_text}</p>
                             <div className="flex items-center justify-between mt-2">
                                 <span className="text-xs text-gray-300">{issue.filename.replace(/\\/g, '/').split('/').pop()} (Line: {issue.line_number})</span>
-                                <button onClick={() => onGetSuggestion(issue)} className="text-xs bg-gray-600 hover:bg-gray-500 font-semibold px-3 py-1 rounded-full whitespace-nowrap">
-                                    ✨ Get Suggestion
-                                </button>
+                                <div>
+                                    <button onClick={() => onViewCode(issue.filename.replace(/\\/g, '/').split('/').pop())} className="text-xs bg-gray-500 hover:bg-gray-400 font-semibold px-3 py-1 rounded-full whitespace-nowrap mr-2">View Code</button>
+                                    <button onClick={() => onGetSuggestion(issue)} className="text-xs bg-gray-600 hover:bg-gray-500 font-semibold px-3 py-1 rounded-full whitespace-nowrap">
+                                        ✨ Get Suggestion
+                                    </button>
+                                </div>
                             </div>
                         </li>
                     ))}
@@ -212,10 +229,7 @@ const App = () => {
                         <button onClick={onClose} className="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
                     </div>
                     {isLoading ? (
-                        <div className="text-center p-8">
-                            <div className="w-10 h-10 border-4 border-dashed rounded-full animate-spin border-indigo-600 mx-auto"></div>
-                            <p className="text-gray-600 mt-4">🤖 Getting suggestion from AI...</p>
-                        </div>
+                        <div className="text-center p-8"><div className="w-10 h-10 border-4 border-dashed rounded-full animate-spin border-indigo-600 mx-auto"></div><p className="text-gray-600 mt-4">🤖 Getting suggestion from AI...</p></div>
                     ) : (
                         <div className="prose max-w-none" dangerouslySetInnerHTML={{ __html: content.replace(/\n/g, '<br />').replace(/```python/g, '<pre class="bg-gray-800 text-white p-4 rounded-lg"><code>').replace(/```/g, '</code></pre>') }} />
                     )}
@@ -224,17 +238,56 @@ const App = () => {
         );
     };
 
+    // NEW: Code Viewer Modal Component
+    const CodeViewerModal = ({ isOpen, file, onClose }) => {
+        if (!isOpen) return null;
+
+        // Basic syntax highlighting for Python keywords
+        const highlightSyntax = (code) => {
+            const keywords = ['def', 'return', 'if', 'elif', 'else', 'for', 'in', 'while', 'import', 'from', 'as', 'try', 'except', 'finally', 'with', 'class', 'pass', 'continue', 'break'];
+            const comments = /(#.*$)/gm;
+            const strings = /(".*?"|'.*?')/g;
+
+            let highlightedCode = code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); // HTML escape
+            
+            highlightedCode = highlightedCode.replace(strings, '<span class="text-green-400">$&</span>');
+            highlightedCode = highlightedCode.replace(comments, '<span class="text-gray-500">$&</span>');
+            
+            keywords.forEach(keyword => {
+                const regex = new RegExp(`\\b${keyword}\\b`, 'g');
+                highlightedCode = highlightedCode.replace(regex, `<span class="text-indigo-400 font-bold">${keyword}</span>`);
+            });
+
+            return highlightedCode;
+        };
+
+        return (
+             <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+                <div className="bg-gray-800 text-white rounded-lg shadow-2xl p-6 w-full max-w-4xl max-h-[90vh] flex flex-col">
+                    <div className="flex justify-between items-center mb-4 flex-shrink-0">
+                        <h3 className="text-xl font-bold">Viewing: {file.fileName}</h3>
+                        <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl font-bold">&times;</button>
+                    </div>
+                    <pre className="flex-grow overflow-auto bg-gray-900 p-4 rounded-md">
+                        <code dangerouslySetInnerHTML={{ __html: highlightSyntax(file.content) }} />
+                    </pre>
+                </div>
+            </div>
+        );
+    };
+
     const ResultsDashboard = () => (
         <div className="mt-12 space-y-8">
             <RadonReport radonData={analysisResults?.radon} />
-            <PylintReport pylintData={analysisResults?.pylint} onGetSuggestion={handleGetSuggestion} />
-            <BanditReport banditData={analysisResults?.bandit} onGetSuggestion={handleGetSuggestion} />
+            <PylintReport pylintData={analysisResults?.pylint} onGetSuggestion={handleGetSuggestion} onViewCode={handleViewCode} />
+            <BanditReport banditData={analysisResults?.bandit} onGetSuggestion={handleGetSuggestion} onViewCode={handleViewCode} />
         </div>
     );
 
     return (
         <div className="bg-gray-50 min-h-screen font-sans">
             <SuggestionModal isOpen={isSuggestionModalOpen} isLoading={isSuggestionLoading} content={suggestionContent} onClose={() => setIsSuggestionModalOpen(false)} />
+            <CodeViewerModal isOpen={isCodeModalOpen} file={codeModalContent} onClose={() => setIsCodeModalOpen(false)} />
             <div className="container mx-auto p-4 sm:p-6 lg:p-8">
                 <header className="text-center mb-12">
                     <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-800">Flask Code <span className="text-indigo-600">Auditor</span></h1>
