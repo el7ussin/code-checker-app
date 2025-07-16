@@ -15,7 +15,7 @@ const App = () => {
         setError(null);
         setAnalysisResults(null);
 
-        fetch('http://localhost:5000/analyze', {
+        fetch('https://code-checker-app.onrender.com/analyze', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
