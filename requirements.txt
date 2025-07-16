@@ -4,3 +4,4 @@ pylint
 gunicorn
 bandit
 radon
+google-generativeai

@@ -15,7 +15,12 @@ const App = () => {
         setError(null);
         setAnalysisResults(null);
 
-        fetch('https://code-checker-app.onrender.com/analyze', {
+        // NOTE: Use your live Render URL here for the deployed app
+        const apiUrl = process.env.NODE_ENV === 'production' 
+            ? 'https://code-checker-app.onrender.com/analyze' 
+            : 'http://localhost:5000/analyze';
+
+        fetch(apiUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -74,9 +79,9 @@ const App = () => {
                 setError("Could not read the uploaded files.");
             });
     };
-
+    
     // --- UI Components ---
-
+    
     const FileUploadArea = () => (
         <div className="bg-white p-8 rounded-xl shadow-lg text-center">
             <h2 className="text-2xl font-bold text-gray-800 mb-2">Upload Your Flask Project</h2>
@@ -109,61 +114,40 @@ const App = () => {
             {error && <p className="mt-4 text-red-500 text-sm">{error}</p>}
         </div>
     );
-
+    
     const PylintReport = ({ pylintData }) => {
-        // NEW: State to manage which issue types are visible
-        const [filters, setFilters] = useState({
-            error: true,
-            warning: true,
-            convention: true,
-            refactor: true,
-        });
+        const [filters, setFilters] = useState({ error: true, warning: true, convention: true, refactor: true });
 
         const handleFilterChange = (event) => {
             const { name, checked } = event.target;
-            setFilters(prevFilters => ({
-                ...prevFilters,
-                [name]: checked,
-            }));
+            setFilters(prevFilters => ({ ...prevFilters, [name]: checked }));
         };
 
         const processedData = useMemo(() => {
             if (!pylintData || !Array.isArray(pylintData)) return null;
-
-            // NEW: Filter messages based on the filter state
             const filteredMessages = pylintData.filter(msg => filters[msg.type]);
-
             const summary = { error: 0, warning: 0, convention: 0, refactor: 0, fatal: 0 };
             const messagesByFile = {};
-
-            // Use the original data for summary stats, but filtered data for display
-            pylintData.forEach(msg => {
-                summary[msg.type] = (summary[msg.type] || 0) + 1;
-            });
-
+            pylintData.forEach(msg => { summary[msg.type] = (summary[msg.type] || 0) + 1; });
             filteredMessages.forEach(msg => {
                 const fileName = msg.path?.replace('temp_uploads\\', '') || 'general';
                 if (!messagesByFile[fileName]) messagesByFile[fileName] = [];
                 messagesByFile[fileName].push(msg);
             });
-
             const score = Math.max(0, 10 - (summary.error * 1) - (summary.warning * 0.5) - (summary.convention * 0.1) - (summary.refactor * 0.1)).toFixed(2);
-
             return { summary, messagesByFile, score };
         }, [pylintData, filters]);
 
         if (!pylintData || pylintData.length === 0) return <div className="bg-white p-6 rounded-xl shadow-md"><h3 className="text-xl font-semibold text-green-600">✅ Pylint: No Issues Found</h3></div>;
-
         const { summary, messagesByFile, score } = processedData;
-
         const getIssueTypeStyling = (type) => ({
-            error: { icon: '❌', color: 'bg-red-100 text-red-800' },
-            warning: { icon: '⚠️', color: 'bg-yellow-100 text-yellow-800' },
-            convention: { icon: '📝', color: 'bg-blue-100 text-blue-800' },
-            refactor: { icon: '🔧', color: 'bg-purple-100 text-purple-800' },
-            fatal: { icon: '💥', color: 'bg-gray-800 text-white' }
-        }[type] || { icon: '➡️', color: 'bg-gray-100 text-gray-800' });
-
+            error: { color: 'bg-red-100 text-red-800' },
+            warning: { color: 'bg-yellow-100 text-yellow-800' },
+            convention: { color: 'bg-blue-100 text-blue-800' },
+            refactor: { color: 'bg-purple-100 text-purple-800' },
+            fatal: { color: 'bg-gray-800 text-white' }
+        }[type] || { color: 'bg-gray-100 text-gray-800' });
+        
         return (
             <div className="bg-white p-6 rounded-xl shadow-lg">
                 <h2 className="text-2xl font-bold text-gray-800 mb-4">Pylint Code Quality Report</h2>
@@ -174,25 +158,16 @@ const App = () => {
                     <div className={`${getIssueTypeStyling('convention').color} p-4 rounded-lg text-center`}><p className="text-sm font-bold">CONVENTION</p><p className="text-4xl font-light">{summary.convention}</p></div>
                     <div className={`${getIssueTypeStyling('refactor').color} p-4 rounded-lg text-center`}><p className="text-sm font-bold">REFACTOR</p><p className="text-4xl font-light">{summary.refactor}</p></div>
                 </div>
-
-                {/* NEW: Filter Checkboxes */}
                 <div className="bg-gray-100 p-4 rounded-lg mb-6 flex items-center justify-center space-x-4">
                     <span className="font-semibold text-gray-700">Show:</span>
                     {Object.keys(filters).map(filterName => (
                         <label key={filterName} className="flex items-center space-x-2 capitalize cursor-pointer">
-                            <input
-                                type="checkbox"
-                                name={filterName}
-                                checked={filters[filterName]}
-                                onChange={handleFilterChange}
-                                className="h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300"
-                            />
+                            <input type="checkbox" name={filterName} checked={filters[filterName]} onChange={handleFilterChange} className="h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300"/>
                             <span>{filterName}</span>
                         </label>
                     ))}
                 </div>
-
-                 {Object.keys(messagesByFile).length > 0 ? Object.entries(messagesByFile).map(([fileName, messages]) => (
+                {Object.keys(messagesByFile).length > 0 ? Object.entries(messagesByFile).map(([fileName, messages]) => (
                     <div key={fileName} className="mb-4">
                         <h3 className="text-lg font-semibold text-gray-700 mb-2 border-b pb-1">File: {fileName}</h3>
                         <ul className="space-y-2">
@@ -204,39 +179,32 @@ const App = () => {
                             ))}
                         </ul>
                     </div>
-                 )) : <p className="text-center text-gray-500 py-4">No issues match the current filter.</p>}
+                )) : <p className="text-center text-gray-500 py-4">No issues match the current filter.</p>}
             </div>
         )
     };
-
+    
     const BanditReport = ({ banditData }) => {
-        const processedData = useMemo(() => {
-            if (!banditData || banditData.length === 0) return null;
-            const summary = { HIGH: 0, MEDIUM: 0, LOW: 0 };
-            banditData.forEach(issue => summary[issue.issue_severity]++);
-            return { summary, issues: banditData };
-        }, [banditData]);
-
-        if (!processedData) return <div className="bg-white p-6 rounded-xl shadow-md"><h3 className="text-xl font-semibold text-green-600">✅ Bandit: No Security Issues Found</h3></div>;
-
-        const { summary, issues } = processedData;
-
+        if (!banditData || banditData.length === 0) return <div className="bg-white p-6 rounded-xl shadow-md"><h3 className="text-xl font-semibold text-green-600">✅ Bandit: No Security Issues Found</h3></div>;
+        
+        const summary = { HIGH: 0, MEDIUM: 0, LOW: 0 };
+        banditData.forEach(issue => summary[issue.issue_severity]++);
+        
         const getSeverityStyling = (severity) => ({
-            HIGH: 'bg-red-500 text-white',
-            MEDIUM: 'bg-yellow-400 text-black',
-            LOW: 'bg-blue-300 text-black',
+            HIGH: 'bg-red-500 text-white', MEDIUM: 'bg-yellow-400 text-black', LOW: 'bg-blue-300 text-black'
         }[severity] || 'bg-gray-300');
 
         return (
             <div className="bg-gray-800 text-white p-6 rounded-xl shadow-lg">
                 <h2 className="text-2xl font-bold mb-4">Bandit Security Report</h2>
-                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                     <div className="bg-red-700 p-4 rounded-lg text-center"><p className="text-sm font-bold">HIGH</p><p className="text-4xl font-light">{summary.HIGH}</p></div>
                     <div className="bg-yellow-500 p-4 rounded-lg text-center"><p className="text-sm font-bold">MEDIUM</p><p className="text-4xl font-light">{summary.MEDIUM}</p></div>
                     <div className="bg-blue-500 p-4 rounded-lg text-center"><p className="text-sm font-bold">LOW</p><p className="text-4xl font-light">{summary.LOW}</p></div>
                 </div>
                 <ul className="space-y-3">
-                    {issues.map((issue, index) => (
+                    {/* THIS IS THE FIX: Changed 'issues.map' to 'banditData.map' */}
+                    {banditData.map((issue, index) => (
                         <li key={index} className="bg-gray-700 p-3 rounded-md">
                             <p className="font-semibold">{issue.issue_text}</p>
                             <div className="flex items-center justify-between text-xs mt-1 text-gray-300">
@@ -250,8 +218,53 @@ const App = () => {
         )
     };
 
+    const RadonReport = ({ radonData }) => {
+        const sortedFunctions = useMemo(() => {
+            if (!radonData || radonData.length === 0) return null;
+            return [...radonData].sort((a, b) => b.complexity - a.complexity);
+        }, [radonData]);
+
+        if (!sortedFunctions) return <div className="bg-white p-6 rounded-xl shadow-md"><h3 className="text-xl font-semibold text-green-600">✅ Radon: No Functions Found</h3></div>;
+        
+        const getRankStyling = (rank) => ({
+            'A': 'bg-green-500 text-white', 'B': 'bg-blue-500 text-white', 'C': 'bg-yellow-500 text-black',
+            'D': 'bg-orange-500 text-white', 'E': 'bg-red-500 text-white', 'F': 'bg-red-700 text-white'
+        }[rank] || 'bg-gray-400');
+
+        return (
+            <div className="bg-white p-6 rounded-xl shadow-lg">
+                <h2 className="text-2xl font-bold text-gray-800 mb-4">Radon Complexity Report</h2>
+                <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Function</th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">File</th>
+                                <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Complexity</th>
+                                <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                            {sortedFunctions.map((func, index) => (
+                                <tr key={index}>
+                                    <td className="px-6 py-4 whitespace-nowrap"><code className="text-sm text-gray-900">{func.name}</code></td>
+                                    <td className="px-6 py-4 whitespace-nowrap"><span className="text-sm text-gray-500">{func.file_path}</span></td>
+                                    <td className="px-6 py-4 text-center"><span className="text-lg font-semibold text-gray-900">{func.complexity}</span></td>
+                                    <td className="px-6 py-4 text-center">
+                                        <span className={`px-3 py-1 text-xs font-bold rounded-full ${getRankStyling(func.rank)}`}>{func.rank}</span>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    };
+
     const ResultsDashboard = () => (
         <div className="mt-12 space-y-8">
+            <RadonReport radonData={analysisResults?.radon} />
             <PylintReport pylintData={analysisResults?.pylint} />
             <BanditReport banditData={analysisResults?.bandit} />
         </div>
@@ -265,10 +278,9 @@ const App = () => {
                         Flask Code <span className="text-indigo-600">Auditor</span>
                     </h1>
                     <p className="mt-4 text-lg text-gray-600 max-w-2xl mx-auto">
-                        Powered by Pylint (Code Quality) and Bandit (Security).
+                        Powered by Pylint, Bandit, and Radon.
                     </p>
                 </header>
-
                 <main>
                     <FileUploadArea />
                     {isLoading && (
@@ -279,7 +291,6 @@ const App = () => {
                     )}
                     {!isLoading && analysisResults && <ResultsDashboard />}
                 </main>
-
                 <footer className="text-center mt-16 text-sm text-gray-500">
                     <p>Built with React, Flask & Tailwind CSS.</p>
                 </footer>
