@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 // Main App Component
 const App = () => {
     // --- State Management ---
-    const [page, setPage] = useState('login'); // 'login', 'dashboard', 'history'
+    const [page, setPage] = useState('login');
     const [currentUser, setCurrentUser] = useState(null);
     const [error, setError] = useState('');
 
@@ -17,7 +17,6 @@ const App = () => {
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('error')) {
             setError("GitHub login failed. Please try again.");
-            // Clean up URL
             window.history.replaceState({}, document.title, "/");
         }
         
@@ -27,13 +26,10 @@ const App = () => {
                 if (data.logged_in) {
                     setCurrentUser(data.username);
                     setPage('dashboard');
-                    // Clean up URL after successful login check
                     window.history.replaceState({}, document.title, "/");
                 }
             })
-            .catch(() => {
-                // Don't show an error on the initial load if the user is just not logged in.
-            });
+            .catch(() => {});
     }, []);
 
     const handleLogout = () => {
@@ -78,9 +74,7 @@ const App = () => {
             fetch(`${API_URL}/get-repos`, { credentials: 'include' })
                 .then(res => res.json())
                 .then(data => {
-                    if (data && !data.error) {
-                        setRepos(data);
-                    }
+                    if (data && !data.error) setRepos(data);
                 })
                 .finally(() => setIsReposLoading(false));
         }, []);
@@ -107,7 +101,7 @@ const App = () => {
                     <p className="text-gray-500 mb-6">Select one of your GitHub repositories to analyze.</p>
                     
                     {isReposLoading ? <p>Loading repositories...</p> : (
-                        <div className="flex space-x-4">
+                        <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
                             <select value={selectedRepo} onChange={e => setSelectedRepo(e.target.value)} className="w-full p-3 border rounded-lg bg-gray-50">
                                 <option value="">-- Select a Repository --</option>
                                 {repos.map(repo => <option key={repo.name} value={repo.name}>{repo.name}</option>)}
@@ -119,17 +113,13 @@ const App = () => {
                     )}
                 </div>
 
-                {isLoading && <div className="text-center p-8"><p>Cloning repository and running analysis... This may take a moment.</p></div>}
+                {isLoading && <div className="text-center p-8"><div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-indigo-600 mx-auto"></div><p className="text-gray-600 mt-4">Cloning repository and running analysis...</p></div>}
 
                 {analysisResults && (
                     <div className="mt-8 space-y-8">
-                        {/* We can re-add the full report components here later */}
-                        <div className="bg-white p-6 rounded-xl shadow-lg">
-                            <h3 className="text-xl font-bold">Analysis Results for {selectedRepo}</h3>
-                            <pre className="bg-gray-100 p-4 rounded mt-2 overflow-auto max-h-96">
-                                {JSON.stringify(analysisResults, null, 2)}
-                            </pre>
-                        </div>
+                        <RadonReport radonData={analysisResults.radon} />
+                        <PylintReport pylintData={analysisResults.pylint} />
+                        <BanditReport banditData={analysisResults.bandit} />
                     </div>
                 )}
             </>
@@ -143,7 +133,6 @@ const App = () => {
                 <div className="flex items-center space-x-4">
                     <span className="text-gray-700">Welcome, {currentUser}</span>
                     <button onClick={() => setPage('dashboard')} className="hover:underline">Dashboard</button>
-                    {/* <button onClick={() => setPage('history')} className="hover:underline">History</button> */}
                     <button onClick={handleLogout} className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600">Logout</button>
                 </div>
             )}
@@ -157,7 +146,74 @@ const App = () => {
             <div className="container mx-auto p-4">
                 {page === 'login' && <LoginPage />}
                 {currentUser && page === 'dashboard' && <DashboardPage />}
-                {/* {currentUser && page === 'history' && <HistoryPage />} */}
+            </div>
+        </div>
+    );
+};
+
+// --- All Report and Modal Components ---
+
+const PylintReport = ({ pylintData }) => {
+    if (!pylintData || pylintData.length === 0) return null;
+    return (
+        <div className="bg-white p-6 rounded-xl shadow-lg">
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Pylint Code Quality Report</h2>
+            {Object.entries(pylintData.reduce((acc, msg) => {
+                const fileName = msg.path?.replace(/\\/g, '/').split('/').pop() || 'general';
+                if (!acc[fileName]) acc[fileName] = [];
+                acc[fileName].push(msg);
+                return acc;
+            }, {})).map(([fileName, messages]) => (
+                <div key={fileName} className="mb-4">
+                    <h3 className="text-lg font-semibold text-gray-700 mb-2 border-b pb-1">File: {fileName}</h3>
+                    <ul className="space-y-2">
+                        {messages.map((msg, index) => (
+                            <li key={index} className="flex items-start text-sm">
+                                <div className="flex-grow mr-4"><p className="font-medium text-gray-700">{msg.message} <span className="text-gray-400">({msg.symbol})</span></p><p className="text-xs text-gray-500">Line: {msg.line}</p></div>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            ))}
+        </div>
+    );
+};
+    
+const BanditReport = ({ banditData }) => {
+    if (!banditData || banditData.length === 0) return null;
+    return (
+        <div className="bg-gray-800 text-white p-6 rounded-xl shadow-lg">
+            <h2 className="text-2xl font-bold mb-4">Bandit Security Report</h2>
+            <ul className="space-y-3">
+                {banditData.map((issue, index) => (
+                    <li key={index} className="bg-gray-700 p-3 rounded-md">
+                        <p className="font-semibold">{issue.issue_text}</p>
+                        <div className="flex items-center justify-between mt-2">
+                            <span className="text-xs text-gray-300">{issue.filename.replace(/\\/g, '/').split('/').pop()} (Line: {issue.line_number})</span>
+                        </div>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+};
+
+const RadonReport = ({ radonData }) => {
+    if (!radonData || radonData.length === 0) return null;
+    const sortedFunctions = [...radonData].sort((a, b) => b.complexity - a.complexity);
+    const getRankStyling = (rank) => ({'A': 'bg-green-500 text-white', 'B': 'bg-blue-500 text-white', 'C': 'bg-yellow-500 text-black', 'D': 'bg-orange-500 text-white', 'E': 'bg-red-500 text-white', 'F': 'bg-red-700 text-white'}[rank] || 'bg-gray-400');
+    return (
+         <div className="bg-white p-6 rounded-xl shadow-lg">
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Radon Complexity Report</h2>
+            <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50"><tr><th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Function</th><th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">File</th><th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Complexity</th><th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th></tr></thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                        {sortedFunctions.map((func, index) => (
+                            <tr key={index}><td className="px-6 py-4 whitespace-nowrap"><code className="text-sm text-gray-900">{func.name}</code></td><td className="px-6 py-4 whitespace-nowrap"><span className="text-sm text-gray-500">{func.file_path}</span></td><td className="px-6 py-4 text-center"><span className="text-lg font-semibold text-gray-900">{func.complexity}</span></td><td className="px-6 py-4 text-center"><span className={`px-3 py-1 text-xs font-bold rounded-full ${getRankStyling(func.rank)}`}>{func.rank}</span></td></tr>
+                        ))}
+                    </tbody>
+                </table>
             </div>
         </div>
     );
