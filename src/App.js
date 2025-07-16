@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useEffect } from 'react'; // 'useCallback' has been removed
 
 // Main App Component
 const App = () => {
@@ -23,7 +23,7 @@ const App = () => {
                 }
             })
             .catch(() => setError("Could not connect to the backend server. Is it running?"));
-    }, [API_URL]);
+    }, []); // API_URL removed from dependency array
 
     const handleLogout = () => {
         fetch(`${API_URL}/logout`, { method: 'POST', credentials: 'include' })
@@ -167,7 +167,7 @@ const App = () => {
             });
         };
 
-        const handleGetSuggestion = useCallback((issue) => {
+        const handleGetSuggestion = (issue) => {
             setIsSuggestionModalOpen(true);
             setIsSuggestionLoading(true);
             setSuggestionContent('');
@@ -190,15 +190,15 @@ const App = () => {
             })
             .catch(err => setSuggestionContent(`<strong>Error:</strong><br/>${err.message || err}`))
             .finally(() => setIsSuggestionLoading(false));
-        }, [fileContents, API_URL]);
+        };
 
-        const handleViewCode = useCallback((fileName) => {
+        const handleViewCode = (fileName) => {
             const file = fileContents.find(f => f.fileName === fileName);
             if (file) {
                 setCodeModalContent(file);
                 setIsCodeModalOpen(true);
             }
-        }, [fileContents]);
+        };
 
         return (
             <>
@@ -242,7 +242,7 @@ const App = () => {
                     setReports(data);
                     setIsLoading(false);
                 });
-        }, [API_URL]);
+        }, []); // API_URL removed from dependency array
 
         if (isLoading) return <p>Loading history...</p>;
 
@@ -289,7 +289,6 @@ const App = () => {
 };
 
 // --- All Report and Modal Components ---
-// (These are now defined inside DashboardPage or at the top level if needed elsewhere)
 
 const SuggestionModal = ({ isOpen, isLoading, content, onClose }) => {
     if (!isOpen) return null;
