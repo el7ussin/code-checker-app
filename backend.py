@@ -5,10 +5,7 @@ import google.generativeai as genai
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
-# --- IMPORTANT: Add your API Key here ---
-# It's recommended to use environment variables for production
-# For local testing, you can paste it directly.
-# Example: os.environ.get('GEMINI_API_KEY', 'YOUR_API_KEY_HERE')
+# --- IMPORTANT: Make sure your API Key is correct here ---
 API_KEY = 'AIzaSyCyDG2Pbyf6ZckrHMVPVYwAS7ORME-UCS4'
 genai.configure(api_key=API_KEY)
 
@@ -79,7 +76,7 @@ def analyze_code():
     }
     return jsonify(final_results)
 
-# --- NEW: AI Suggestion Route ---
+# --- AI Suggestion Route ---
 @app.route('/get-suggestion', methods=['POST'])
 def get_suggestion():
     data = request.get_json()
@@ -110,6 +107,8 @@ def get_suggestion():
         response = model.generate_content(prompt)
         return jsonify({"suggestion": response.text})
     except Exception as e:
+        # THIS IS THE NEW LINE FOR BETTER LOGGING
+        print(f"AN ERROR OCCURRED IN /get-suggestion: {str(e)}")
         return jsonify({"error": f"Failed to get suggestion from AI: {str(e)}"}), 500
 
 if __name__ == '__main__':
