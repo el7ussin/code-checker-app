@@ -9,7 +9,7 @@ from flask_cors import CORS
 # It's recommended to use environment variables for production
 # For local testing, you can paste it directly.
 # Example: os.environ.get('GEMINI_API_KEY', 'YOUR_API_KEY_HERE')
-API_KEY = 'AIzaSyDK0cDrfQuydbTXqTNtawCrqcmPebe2ERA'
+API_KEY = 'AIzaSyCyDG2Pbyf6ZckrHMVPVYwAS7ORME-UCS4'
 genai.configure(api_key=API_KEY)
 
 app = Flask(__name__)
