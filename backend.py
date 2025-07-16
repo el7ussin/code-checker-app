@@ -5,7 +5,7 @@ import google.generativeai as genai
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
-# --- IMPORTANT: Make sure your API Key is correct here ---
+# Make sure your API Key is correct here
 API_KEY = 'AIzaSyCyDG2Pbyf6ZckrHMVPVYwAS7ORME-UCS4'
 genai.configure(api_key=API_KEY)
 
@@ -87,7 +87,8 @@ def get_suggestion():
         return jsonify({"error": "Missing error message or code context"}), 400
 
     try:
-        model = genai.GenerativeModel('gemini-pro')
+        # THIS IS THE FIX: Changed 'gemini-pro' to 'gemini-1.5-flash'
+        model = genai.GenerativeModel('gemini-1.5-flash')
         prompt = f"""
         As a Python expert, analyze the following static analysis error message and the related code.
         Provide a helpful suggestion in two parts:
@@ -107,7 +108,6 @@ def get_suggestion():
         response = model.generate_content(prompt)
         return jsonify({"suggestion": response.text})
     except Exception as e:
-        # THIS IS THE NEW LINE FOR BETTER LOGGING
         print(f"AN ERROR OCCURRED IN /get-suggestion: {str(e)}")
         return jsonify({"error": f"Failed to get suggestion from AI: {str(e)}"}), 500
 
